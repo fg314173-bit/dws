@@ -107,6 +107,56 @@ function fmt(p: number) {
   return p.toLocaleString('ru-KZ') + ' ₸'
 }
 
+
+function hashStr(str: string) {
+  let h = 0
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+/** Визуальный QR (как в старом фронте): сетка от token. Реальная проверка — token на сервере. */
+function QrGrid({ seed, size = 21 }: { seed: string; size?: number }) {
+  const cells: boolean[] = []
+  let h = hashStr(seed)
+  for (let i = 0; i < size * size; i++) {
+    h = (Math.imul(h, 1103515245) + 12345) >>> 0
+    // finder-ish corners always on for a "QR look"
+    const r = Math.floor(i / size)
+    const c = i % size
+    const finder =
+      (r < 3 && c < 3) ||
+      (r < 3 && c >= size - 3) ||
+      (r >= size - 3 && c < 3)
+    cells.push(finder || (h % 3 !== 0))
+  }
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${size}, 1fr)`,
+        gap: 1.5,
+        width: 180,
+        height: 180,
+        background: '#F2F0EB',
+        padding: 10,
+        borderRadius: 12,
+        margin: '0 auto',
+      }}
+    >
+      {cells.map((on, i) => (
+        <div
+          key={i}
+          style={{
+            background: on ? '#0D0D0D' : 'transparent',
+            borderRadius: 1,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+
 const STATUS_UI: Record<OrderStatus, { label: string; color: string; step: number }> = {
   paid: { label: 'Оплачен', color: '#FF4D00', step: 0 },
   accepted: { label: 'Готовится', color: '#FFB800', step: 1 },
@@ -553,6 +603,22 @@ function OrdersView({ order, onCollect, collecting }: { order: AppOrder | null; 
           </div>
         ))}
       </div>
+
+      {/* QR — показываем пока заказ не выдан */}
+      {order.status !== 'delivered' && (
+        <div style={{ background: '#111', border: '1px solid #1E1E1E', borderRadius: 20, padding: 20, marginBottom: 16, textAlign: 'center' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#FF4D00', letterSpacing: '0.15em', marginBottom: 12 }}>
+            QR ДЛЯ ВЫДАЧИ
+          </div>
+          <QrGrid seed={order.token} />
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#666', marginTop: 12 }}>
+            Покажи сотруднику или нажми «Забрать», когда заказ в Locker
+          </div>
+          <div style={{ fontFamily: 'Unbounded, sans-serif', fontWeight: 700, fontSize: 18, color: '#F2F0EB', marginTop: 8 }}>
+            #{order.id}
+          </div>
+        </div>
+      )}
 
       {order.status === 'ready' && order.tray != null && (
         <div style={{ background: '#111', border: '1px solid #1E1E1E', borderRadius: 20, padding: 20, marginBottom: 16, textAlign: 'center' }}>
